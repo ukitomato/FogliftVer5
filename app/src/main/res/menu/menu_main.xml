@@ -1,0 +1,13 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context="com.google.watermap.p.gary.fogliftver4.MainActivity">
+    <item
+        android:id="@+id/settings"
+        android:title="@string/action_settings" />
+    <item
+        android:id="@+id/location_switch_appbar"
+        android:checkable="true"
+        android:title="@string/location_update"
+        app:actionLayout="@layout/switch_item" />
+</menu>
