@@ -18,6 +18,7 @@ import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 
 import android.os.Bundle;
+import android.support.v4.app.FragmentActivity;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -33,13 +34,28 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.VisibleRegion;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+import com.google.maps.android.SphericalUtil;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+import static java.lang.Math.cos;
+import static java.lang.Math.sin;
 
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMarkerDragListener {
@@ -82,6 +98,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private Boolean serviceAvailble;
     private MenuItem serviceSwitch;
 
+    //Firebase
+    private FragmentActivity fragmentActivity = this;
+
+    private FirebaseDatabase mDatabase;
+
+    private DatabaseReference mDatabaseReference;
+    private List<DatabasePlace> dbPlaceList = new ArrayList<>();
+    private HashMap<String, DatabasePlace> placeMap = new HashMap<>();
+
+    private double earth_dis = 6378137;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -102,13 +129,37 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         //UI指定
 
 
-        //ラベル指定.
+        //ラベル指定
 
 
         serviceAvailble = false;
 
         updateValuesFromSharedPreferences(preferences);
         updateValuesFromBundle(savedInstanceState);
+
+
+        mDatabase = FirebaseDatabase.getInstance();
+        mDatabaseReference = mDatabase.getReference("Places");
+
+
+        mDatabaseReference.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                for (DataSnapshot data : dataSnapshot.getChildren()) {
+                    putPlaceList(data, dbPlaceList);
+                    //putPlaceMap(data, placeMap);
+                }
+                if (mMap != null) {
+                    addMakerAll();
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
+
     }
 
     /**
@@ -300,8 +351,29 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mMap.getUiSettings().setCompassEnabled(true);
         mMap.getUiSettings().setIndoorLevelPickerEnabled(true);
 
+        mMap.setInfoWindowAdapter(new CustomWindowViewer(fragmentActivity));
+        mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
+            @Override
+            public boolean onMarkerClick(Marker marker) {
+                Log.i("oMC", "TRUE");
+                CameraPosition cameraPosition = mMap.getCameraPosition();
+                VisibleRegion screenRegion = mMap.getProjection().getVisibleRegion();
+                LatLng topRight = screenRegion.latLngBounds.northeast;
+                LatLng bottomLeft = screenRegion.latLngBounds.southwest;
+                double screenDistance = SphericalUtil.computeDistanceBetween(topRight, bottomLeft) * sin(40) *25;
+                double theta = cameraPosition.tilt;
+                double distance = screenDistance / earth_dis;
+                double moveLat = distance * cos(theta);
+                double moveLng = distance * sin(theta);
+
+                marker.showInfoWindow();
+                mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(marker.getPosition().latitude + moveLat, marker.getPosition().longitude + moveLng)));
+                return true;
+            }
+        });
+
         getDeviceLocation();
-        
+
         if (checkPermissions()) {
             mMap.setMyLocationEnabled(true);
         }
@@ -384,6 +456,47 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    public void addMakerAll() {
+        for (DatabasePlace dbPlace : dbPlaceList) {
+            Marker marker = mMap.addMarker(new MarkerOptions().position(dbPlace.getLocation()).title(dbPlace.getName())
+                    .icon(BitmapDescriptorFactory.defaultMarker(dbPlace.getMakerColor())));
+            marker.setTag(dbPlace);
+        }
+    }
+
+    private void putPlaceList(DataSnapshot dataSnapshot, List<DatabasePlace> dbPlaceList) {
+        String key = dataSnapshot.getKey();
+        Log.i("onDataChange", key);
+        Object kind = dataSnapshot.child("Kind").getValue();
+        Object level = dataSnapshot.child("Level").getValue();
+        Object latitude = dataSnapshot.child("Location").child("Latitude").getValue();
+        Object longitude = dataSnapshot.child("Location").child("Longitude").getValue();
+        Object uri = dataSnapshot.child("ImageURI").getValue();
+        Object id = dataSnapshot.child("ID").getValue();
+        Log.i("Value", kind + ":" + level + ":" + latitude + ":" + longitude + ":" + id);
+        if (latitude != null && longitude != null) {
+            DatabasePlace dbPlace = new DatabasePlace(key, (String) kind, (long) level, (Double) latitude, (Double) longitude, (long) id);
+            dbPlaceList.add(dbPlace);
+            placeMap.put(key, dbPlace);
+        }
+    }
+
+    private void putPlaceMap(DataSnapshot dataSnapshot, HashMap<String, DatabasePlace> placeMap) {
+        String key = dataSnapshot.getKey();
+        Log.i("onDataChange", key);
+        Object kind = dataSnapshot.child("Kind").getValue();
+        Object level = dataSnapshot.child("Level").getValue();
+        Object latitude = dataSnapshot.child("Location").child("Latitude").getValue();
+        Object longitude = dataSnapshot.child("Location").child("Longitude").getValue();
+        Object uri = dataSnapshot.child("ImageURI").getValue();
+        Object id = dataSnapshot.child("ID").getValue();
+        Log.i("Value", kind + ":" + level + ":" + latitude + ":" + longitude + ":" + uri);
+        if (latitude != null && longitude != null) {
+            DatabasePlace dbPlace = new DatabasePlace(key, (String) kind, (long) level, (Double) latitude, (Double) longitude, (long) id);
+
+            placeMap.put(key, dbPlace);
+        }
+    }
 
 }
 

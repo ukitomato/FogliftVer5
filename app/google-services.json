@@ -1,0 +1,99 @@
+{
+  "project_info": {
+    "project_number": "341832663994",
+    "firebase_url": "https://gary-p-1508944274438.firebaseio.com",
+    "project_id": "gary-p-1508944274438",
+    "storage_bucket": "gary-p-1508944274438.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:341832663994:android:195b5d4456aa4a02",
+        "android_client_info": {
+          "package_name": "com.google.watermap.p.gary.foglift_ver_2"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "341832663994-ah8mgs9nc4nee6ttobf17d1hitglqlle.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.google.watermap.p.gary.foglift_ver_2",
+            "certificate_hash": "8d8231ed2b1aa6f7641e14da91922909793c80de"
+          }
+        },
+        {
+          "client_id": "341832663994-b0d52s9hm4tguairlp5fe2823c69kq9n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_FLVcbHKpq_LlOAT_N1kxDoPGlC7RXCg"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "341832663994-b0d52s9hm4tguairlp5fe2823c69kq9n.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:341832663994:android:a04959a7d909280e",
+        "android_client_info": {
+          "package_name": "com.google.watermap.p.gary.fogliftver5"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "341832663994-f6r2fqmme3hi9qbdq6t4a3jjv7m5snqp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.google.watermap.p.gary.fogliftver5",
+            "certificate_hash": "8d8231ed2b1aa6f7641e14da91922909793c80de"
+          }
+        },
+        {
+          "client_id": "341832663994-b0d52s9hm4tguairlp5fe2823c69kq9n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_FLVcbHKpq_LlOAT_N1kxDoPGlC7RXCg"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "341832663994-b0d52s9hm4tguairlp5fe2823c69kq9n.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
