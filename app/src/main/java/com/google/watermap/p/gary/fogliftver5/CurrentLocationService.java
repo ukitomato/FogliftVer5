@@ -335,7 +335,7 @@ public class CurrentLocationService extends Service {
         Object id = dataSnapshot.child("ID").getValue();
         Log.i("Value", kind + ":" + level + ":" + latitude + ":" + longitude + ":" + id);
         if (latitude != null && longitude != null) {
-            DatabasePlace dbPlace = new DatabasePlace(key, (String) kind, (long) level, (Double) latitude, (Double) longitude, (long) id);
+            DatabasePlace dbPlace = new DatabasePlace(key, (String) kind, (long) level, (Double) latitude, (Double) longitude, (long) id, (String) uri);
             dbPlaceList.add(dbPlace);
             dbPlaceNotificationCheckArray.put(dbPlace.getId(), false);
         }

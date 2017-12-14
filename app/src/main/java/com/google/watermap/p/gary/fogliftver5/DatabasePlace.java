@@ -23,7 +23,7 @@ public class DatabasePlace {
         // Default constructor required for calls to DataSnapshot.getValue(User.class)
     }
 
-    public DatabasePlace(String name, String kind, long level, double latitude, double longitude, long id) {
+    public DatabasePlace(String name, String kind, long level, double latitude, double longitude, long id, String uri) {
 
         this.name = name;
         this.kind = kind;
@@ -31,7 +31,7 @@ public class DatabasePlace {
         this.latitude = latitude;
         this.longitude = longitude;
         this.location = new LatLng(latitude, longitude);
-
+        this.uri = uri;
         this.id = id;
     }
 
@@ -114,4 +114,9 @@ public class DatabasePlace {
         }
         return R.drawable.googleg_standard_color_18;
     }
+
+    public String getUri() {
+        return uri;
+    }
+
 }

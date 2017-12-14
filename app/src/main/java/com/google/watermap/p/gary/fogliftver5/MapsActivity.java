@@ -22,11 +22,9 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.util.LongSparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -42,7 +40,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.VisibleRegion;
 import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
+
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -105,18 +103,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private DatabaseReference mDatabaseReference;
     private List<DatabasePlace> dbPlaceList = new ArrayList<>();
-    private boolean onDataChange = false;
-    private List<Marker> markersList = new ArrayList<>();
-    private int markersCount = 0;
-    private LongSparseArray<Marker> markerHashArray = new LongSparseArray<>();
+    private HashMap<String, DatabasePlace> placeMap = new HashMap<>();
 
-    private static final String KEY_MARKER_MAP = "maker_map";
-    Intent intent;
     private double earth_dis = 6378137;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Log.i(TAG, "onCreate");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         preferences = getSharedPreferences("DATA", Context.MODE_PRIVATE);
@@ -151,14 +143,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mDatabaseReference.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-                Log.i(TAG, "onDataChange");
-                onDataChange = true;
                 for (DataSnapshot data : dataSnapshot.getChildren()) {
                     putPlaceList(data, dbPlaceList);
+                    //putPlaceMap(data, placeMap);
                 }
                 if (mMap != null) {
                     addMakerAll();
-                    updateUI();
                 }
             }
 
@@ -167,8 +157,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             }
         });
-
-        intent = getIntent();
 
     }
 
@@ -204,10 +192,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      * @param savedInstanceState
      */
     public void onSaveInstanceState(Bundle savedInstanceState) {
+        Log.i(TAG, "onSavedInstanceState");
         savedInstanceState.putFloat(KEY_CAMERA_ZOOM, mCameraZoom);
         savedInstanceState.putParcelable(KEY_CAMERA_LOCATION, mCameraLocation);
         savedInstanceState.putParcelable(KEY_LOCATION, mCurrentLocation);
-
         super.onSaveInstanceState(savedInstanceState);
     }
 
@@ -215,39 +203,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      * UI更新
      */
     private void updateUI() {
-        intent = getIntent();
         Log.i(TAG, "updateUI");
-        long dangerPlaceId = intent.getLongExtra("DANGER_MARKER_ID", 0);
-        boolean fromNotificationCheck = intent.getBooleanExtra("FROM_NOTIFICATION", false);
         if (mMap != null) {
-            if (fromNotificationCheck) {
-                Log.i("updateUI", "fromNotification");
-                if (onDataChange) {
-                    Log.i("updateUI", "dangerPlaceId:" + dangerPlaceId);
-                    if (markerHashArray.get(dangerPlaceId) != null) {
-                        Log.i("updateUI", "NOT_NULL");
-                    }
-                    Marker dangerMarker = markerHashArray.get(dangerPlaceId);
-                    dangerMarker.showInfoWindow();
-                    mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(dangerMarker.getPosition().latitude + 0.007, dangerMarker.getPosition().longitude)));
-                    mMap.moveCamera(CameraUpdateFactory.zoomTo(mCameraDefaultZoom));
-                }
+            if(mCameraLocation!=null){
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mCameraLocation, mCameraZoom));
+            } else if (mCurrentLocation != null) {
+                mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude())));
+                mMap.moveCamera(CameraUpdateFactory.zoomTo(mCameraDefaultZoom));
             } else {
-                if (mCameraLocation != null) {
-                    Log.i("updateUI", "mCameraLocation");
-                    mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mCameraLocation, mCameraZoom));
-                } else if (mCurrentLocation != null) {
-                    Log.i("updateUI", "mCurrentLocation");
-                    mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude())));
-                    mMap.moveCamera(CameraUpdateFactory.zoomTo(mCameraDefaultZoom));
-                } else {
-                    Log.i("updateUI", "else");
-                    mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(tsukuba, mCameraDefaultZoom));
-                }
+                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(tsukuba, mCameraDefaultZoom));
             }
-
         }
-
     }
 
 
@@ -265,13 +231,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onPause() {
         super.onPause();
         Log.i(TAG, "onPause");
-        if (mMap != null) {
-            CameraPosition mCameraPosition = mMap.getCameraPosition();
-            mCameraLocation = mCameraPosition.target;
-            Log.i(TAG, mCameraLocation.latitude + ":" + mCameraLocation.longitude);
-            mCameraZoom = mCameraPosition.zoom;
-            Log.i(TAG, mCameraZoom + "");
-        }
+        CameraPosition mCameraPosition = mMap.getCameraPosition();
+        mCameraLocation = mCameraPosition.target;
+        Log.i(TAG, mCameraLocation.latitude + ":" + mCameraLocation.longitude);
+        mCameraZoom = mCameraPosition.zoom;
+        Log.i(TAG, mCameraZoom + "");
     }
 
 
@@ -395,12 +359,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 VisibleRegion screenRegion = mMap.getProjection().getVisibleRegion();
                 LatLng topRight = screenRegion.latLngBounds.northeast;
                 LatLng bottomLeft = screenRegion.latLngBounds.southwest;
-                double screenDistance = SphericalUtil.computeDistanceBetween(topRight, bottomLeft) * sin(40) * 25;
+                double screenDistance = SphericalUtil.computeDistanceBetween(topRight, bottomLeft) * sin(40) *25;
                 double theta = cameraPosition.tilt;
                 double distance = screenDistance / earth_dis;
                 double moveLat = distance * cos(theta);
                 double moveLng = distance * sin(theta);
-                Log.i(TAG, moveLat + ":"+moveLng);
 
                 marker.showInfoWindow();
                 mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(marker.getPosition().latitude + moveLat, marker.getPosition().longitude + moveLng)));
@@ -417,13 +380,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void getMaker() {
         mMap.setOnMarkerDragListener(this);
-
         mMarker = mMap.addMarker(new MarkerOptions().position(tsukuba).draggable(true));
     }
 
+
     @Override
     public void onMarkerDragStart(Marker marker) {
-
     }
 
     @Override
@@ -492,18 +454,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     public void addMakerAll() {
-        Log.i(TAG, "addMarkerAll");
         for (DatabasePlace dbPlace : dbPlaceList) {
-            markerHashArray.put(dbPlace.getId(), mMap.addMarker(new MarkerOptions().position(dbPlace.getLocation()).title(dbPlace.getName())
-                    .icon(BitmapDescriptorFactory.defaultMarker(dbPlace.getMakerColor()))));
-            markerHashArray.get(dbPlace.getId()).setTag(dbPlace);
+            Marker marker = mMap.addMarker(new MarkerOptions().position(dbPlace.getLocation()).title(dbPlace.getName())
+                    .icon(BitmapDescriptorFactory.defaultMarker(dbPlace.getMakerColor())));
+            marker.setTag(dbPlace);
         }
     }
 
     private void putPlaceList(DataSnapshot dataSnapshot, List<DatabasePlace> dbPlaceList) {
-        Log.i(TAG, "putPlaceList");
+        Log.i(TAG, "pubPlaceList");
         String key = dataSnapshot.getKey();
-        Log.i("putPlaceList", key);
         Object kind = dataSnapshot.child("Kind").getValue();
         Object level = dataSnapshot.child("Level").getValue();
         Object latitude = dataSnapshot.child("Location").child("Latitude").getValue();
@@ -512,15 +472,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         Object id = dataSnapshot.child("ID").getValue();
         Log.i("Value", kind + ":" + level + ":" + latitude + ":" + longitude + ":" + id);
         if (latitude != null && longitude != null) {
-            DatabasePlace dbPlace = new DatabasePlace(key, (String) kind, (long) level, (Double) latitude, (Double) longitude, (long) id);
+            DatabasePlace dbPlace = new DatabasePlace(key, (String) kind, (long) level, (Double) latitude, (Double) longitude, (long) id, (String) uri);
             dbPlaceList.add(dbPlace);
+            placeMap.put(key, dbPlace);
         }
     }
-
-    private void putMarkerHashMap(String name, Marker marker) {
-
-    }
-
 
 }
 
