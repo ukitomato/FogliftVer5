@@ -3,7 +3,7 @@
     <!-- These settings headers are only used on tablets. -->
 
     <header
-        android:fragment="com.google.watermap.p.gary.fogliftver4.SettingsActivity$DataSyncPreferenceFragment"
+        android:fragment="com.google.watermap.p.gary.fogliftver5.SettingsActivity$DataSyncPreferenceFragment"
         android:icon="@drawable/ic_sync_black_24dp"
         android:title="@string/pref_header_location" />
 
