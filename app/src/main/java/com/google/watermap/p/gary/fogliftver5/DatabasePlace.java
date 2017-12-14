@@ -95,6 +95,10 @@ public class DatabasePlace {
         return uri;
     }
 
+    public long getId(){
+        return id;
+    }
+
     public int getImageDrawableID() {
         switch ((int) id) {
             case 5:

@@ -20,6 +20,7 @@ import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
+import android.util.LongSparseArray;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -29,11 +30,21 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResponse;
 import com.google.android.gms.location.SettingsClient;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 import com.google.maps.android.SphericalUtil;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class CurrentLocationService extends Service {
 
@@ -64,6 +75,12 @@ public class CurrentLocationService extends Service {
     private NotificationManager mNotificationManager;
     private final int nID = 18734264;
 
+    private FirebaseDatabase mDatabase;
+
+    private DatabaseReference mDatabaseReference;
+    private List<DatabasePlace> dbPlaceList = new ArrayList<>();
+    private LongSparseArray<Boolean> dbPlaceNotificationCheckArray = new LongSparseArray<>();
+
     public CurrentLocationService() {
     }
 
@@ -85,6 +102,25 @@ public class CurrentLocationService extends Service {
         handlerThread = new HandlerThread("service");
         mNotificationManager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+        mDatabase = FirebaseDatabase.getInstance();
+        mDatabaseReference = mDatabase.getReference("Places");
+
+
+        mDatabaseReference.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                for (DataSnapshot data : dataSnapshot.getChildren()) {
+                    putPlaceList(data, dbPlaceList);
+                }
+                checkPlaceAll();
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
 
         //コールバック作成
         createLocationCallback();
@@ -138,6 +174,7 @@ public class CurrentLocationService extends Service {
                 //現在地取得
                 mCurrentLocation = locationResult.getLastLocation();
                 Log.i("Location Callback", mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude() + ":" + formatNumber(calcDistance(tsukuba)));
+                checkPlaceAll();
             }
         };
     }
@@ -250,36 +287,72 @@ public class CurrentLocationService extends Service {
         mNotificationManager.notify(nID, mBuilder.build());
     }
 
-    private void dangerNotification() {
-        NotificationCompat.Builder mBuilder =
-                new NotificationCompat.Builder(this)
-                        .setSmallIcon(R.drawable.googleg_standard_color_18)
-                        .setOngoing(true)
-                        .setAutoCancel(true)
-                        .setPriority(Notification.PRIORITY_HIGH)
-                        .setColor(Color.argb(127, 255, 0, 0))
-                        .setColorized(true)
-                        .setContentTitle("危険レベル3")
-                        .setContentText("この道はスリが非常に多いです．道を進む場合は貴重品に気を付け人混みは避け周囲に警戒しましょう");
+    private void dangerNotification(DatabasePlace place) {
+            NotificationCompat.Builder mBuilder =
+                    new NotificationCompat.Builder(this)
+                            .setSmallIcon(R.drawable.googleg_standard_color_18)
+                            .setAutoCancel(true)
+                            .setPriority(Notification.PRIORITY_HIGH)
+                            .setColor(place.getLevelColor())
+                            .setColorized(true)
+                            .setContentTitle("危険レベル" + place.getLevel())
+                            .setContentText(place.getName() + "では" + place.getKind() + "が多発しています");
 
-        //Intent作成
-        Intent resultIntent = new Intent(getApplicationContext(), MapsActivity.class);
-        TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
-        stackBuilder.addParentStack(MapsActivity.class);
+            //Intent作成
+            Intent resultIntent = new Intent(getApplicationContext(), MapsActivity.class);
+            resultIntent.putExtra("DANGER_MARKER_ID", place.getId());
+            resultIntent.putExtra("FROM_NOTIFICATION", true);
+            TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
+            stackBuilder.addParentStack(MapsActivity.class);
 
-        stackBuilder.addNextIntent(resultIntent);
-        PendingIntent resultPendingIntent =
-                stackBuilder.getPendingIntent(
-                        0,
-                        PendingIntent.FLAG_UPDATE_CURRENT
-                );
+            stackBuilder.addNextIntent(resultIntent);
+            PendingIntent resultPendingIntent =
+                    stackBuilder.getPendingIntent(
+                            (int) (Math.random() * 100000),
+                            PendingIntent.FLAG_UPDATE_CURRENT
+                    );
 
-        mBuilder.setContentIntent(resultPendingIntent);
-        mNotificationManager =
-                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        //ビルド
-        mNotificationManager.notify(nID, mBuilder.build());
+            mBuilder.setContentIntent(resultPendingIntent);
+            mNotificationManager =
+                    (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            //ビルド
+            mNotificationManager.notify((int) place.getId(), mBuilder.build());
+            dbPlaceNotificationCheckArray.delete(place.getId());
+            dbPlaceNotificationCheckArray.put(place.getId(), true);
+            Log.i("dangerNotification", place.getName() + ":" + place.getId());
+
     }
+
+    private void putPlaceList(DataSnapshot dataSnapshot, List<DatabasePlace> dbPlaceList) {
+        String key = dataSnapshot.getKey();
+        Log.i("onDataChange", key);
+        Object kind = dataSnapshot.child("Kind").getValue();
+        Object level = dataSnapshot.child("Level").getValue();
+        Object latitude = dataSnapshot.child("Location").child("Latitude").getValue();
+        Object longitude = dataSnapshot.child("Location").child("Longitude").getValue();
+        Object uri = dataSnapshot.child("ImageURI").getValue();
+        Object id = dataSnapshot.child("ID").getValue();
+        Log.i("Value", kind + ":" + level + ":" + latitude + ":" + longitude + ":" + id);
+        if (latitude != null && longitude != null) {
+            DatabasePlace dbPlace = new DatabasePlace(key, (String) kind, (long) level, (Double) latitude, (Double) longitude, (long) id);
+            dbPlaceList.add(dbPlace);
+            dbPlaceNotificationCheckArray.put(dbPlace.getId(), false);
+        }
+    }
+    public void checkPlaceAll() {
+        Log.i("Check", "checkPlaceAll");
+        for (DatabasePlace dbPlace : dbPlaceList) {
+            if (calcDistance(dbPlace.getLocation()) < 500) {
+                Log.i(TAG, "DANGER:" + dbPlace.getName());
+                if (!dbPlaceNotificationCheckArray.get(dbPlace.getId())) {
+                    dangerNotification(dbPlace);
+                }else{
+                    Log.i(TAG, "Already Notification");
+                }
+            }
+        }
+    }
+
 
 
 }
