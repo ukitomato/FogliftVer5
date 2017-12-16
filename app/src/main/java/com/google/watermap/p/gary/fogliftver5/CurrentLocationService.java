@@ -10,7 +10,6 @@ import android.app.TaskStackBuilder;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.location.Location;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -30,10 +29,7 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResponse;
 import com.google.android.gms.location.SettingsClient;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.database.DataSnapshot;
@@ -50,7 +46,7 @@ public class CurrentLocationService extends Service {
 
 
     //Share
-    private static final String TAG = MapsActivity.class.getSimpleName();
+    private static final String TAG = CurrentLocationService.class.getSimpleName();
     private FusedLocationProviderClient mFusedLocationClient;
 
 
@@ -65,19 +61,12 @@ public class CurrentLocationService extends Service {
 
     private Boolean mRequestingLocationUpdates;
 
-    private final LatLng mDefaultLocation = new LatLng(35.652832, 139.839478);
     private final LatLng tsukuba = new LatLng(36.082736, 140.111592);
-    private double distance;
-    private Marker mMarker;
 
     private HandlerThread handlerThread;
-
     private NotificationManager mNotificationManager;
     private final int nID = 18734264;
 
-    private FirebaseDatabase mDatabase;
-
-    private DatabaseReference mDatabaseReference;
     private List<DatabasePlace> dbPlaceList = new ArrayList<>();
     private LongSparseArray<Boolean> dbPlaceNotificationCheckArray = new LongSparseArray<>();
 
@@ -94,31 +83,31 @@ public class CurrentLocationService extends Service {
     public void onCreate() {
         super.onCreate();
         mRequestingLocationUpdates = false;
-
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         mSettingsClient = LocationServices.getSettingsClient(this);
 
         //Thread
-        handlerThread = new HandlerThread("service");
+        handlerThread = new HandlerThread("location_update_service");
         mNotificationManager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
-        mDatabase = FirebaseDatabase.getInstance();
-        mDatabaseReference = mDatabase.getReference("Places");
+        FirebaseDatabase mDatabase = FirebaseDatabase.getInstance();
+        DatabaseReference mDatabaseReference = mDatabase.getReference("Places");
 
 
         mDatabaseReference.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
+                dbPlaceList.clear();
+                dbPlaceNotificationCheckArray.clear();
                 for (DataSnapshot data : dataSnapshot.getChildren()) {
-                    putPlaceList(data, dbPlaceList);
+                    putPlaceList(data);
                 }
                 checkPlaceAll();
             }
 
             @Override
             public void onCancelled(DatabaseError databaseError) {
-
             }
         });
 
@@ -135,8 +124,8 @@ public class CurrentLocationService extends Service {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             stopSelf();
         } else {
-            startThread();
-            notification();
+            startLocationUpdateThread();
+            keepNotification();
         }
         return super.onStartCommand(intent, flags, startId);
     }
@@ -195,10 +184,12 @@ public class CurrentLocationService extends Service {
      * 位置更新メソッド
      */
     private void startLocationUpdates() {
+        Log.i(TAG, "startLocationUpdates");
         mSettingsClient.checkLocationSettings(mLocationSettingsRequest).addOnSuccessListener(new OnSuccessListener<LocationSettingsResponse>() {
             @SuppressLint("MissingPermission")
             @Override
             public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
+                Log.i("startLocationUpdates", "onSuccess");
                 mRequestingLocationUpdates = true;
                 mFusedLocationClient.requestLocationUpdates(mLocationRequest,
                         mLocationCallback, Looper.myLooper());
@@ -206,6 +197,7 @@ public class CurrentLocationService extends Service {
         }).addOnFailureListener(new OnFailureListener() {
             @Override
             public void onFailure(@NonNull Exception e) {
+                Log.i("startLocationUpdates", "onFailure");
                 mRequestingLocationUpdates = false;
 
             }
@@ -216,6 +208,7 @@ public class CurrentLocationService extends Service {
      * 位置情報更新停止
      */
     private void stopLocationUpdates() {
+        Log.i(TAG, "stopLocationUpdates");
         if (!mRequestingLocationUpdates) {
             Log.d(TAG, "stopLocationUpdates: updates never requested, no-op.");
             return;
@@ -229,10 +222,7 @@ public class CurrentLocationService extends Service {
      * 距離計算
      */
     private double calcDistance(LatLng pos) {
-        double distance = SphericalUtil.computeDistanceBetween(pos,
-                new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude()));
-        this.distance = distance;
-        return distance;
+        return SphericalUtil.computeDistanceBetween(pos, new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude()));
     }
 
     private String formatNumber(double distance) {
@@ -251,7 +241,7 @@ public class CurrentLocationService extends Service {
     /**
      * Thread実行
      */
-    private void startThread() {
+    private void startLocationUpdateThread() {
         handlerThread.start();
         Handler handler = new Handler(handlerThread.getLooper());
         handler.post(new Runnable() {
@@ -262,13 +252,14 @@ public class CurrentLocationService extends Service {
         });
     }
 
-    private void notification() {
+    private void keepNotification() {
         NotificationCompat.Builder mBuilder =
                 new NotificationCompat.Builder(this)
-                        .setSmallIcon(R.drawable.googleg_standard_color_18)
+                        .setSmallIcon(R.drawable.notificaiton_icon)
                         .setOngoing(true)
                         .setContentTitle("Location updating now")
                         .setContentText("位置情報更新サービスを起動中です");
+
         //Intent作成
         Intent resultIntent = new Intent(getApplicationContext(), MapsActivity.class);
         TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
@@ -291,13 +282,13 @@ public class CurrentLocationService extends Service {
     private void dangerNotification(DatabasePlace place) {
         NotificationCompat.Builder mBuilder =
                 new NotificationCompat.Builder(this)
-                        .setSmallIcon(R.drawable.googleg_standard_color_18)
+                        .setSmallIcon(R.drawable.notificaiton_icon)
                         .setAutoCancel(true)
                         .setPriority(Notification.PRIORITY_HIGH)
                         .setColor(place.getLevelColor())
                         .setColorized(true)
                         .setContentTitle("危険レベル" + place.getLevel())
-                        .setContentText(place.getName() + "では" + place.getKind() + "が多発しています");
+                        .setContentText(place.getInformation());
 
         //Intent作成
         Intent resultIntent = new Intent(getApplicationContext(), MapsActivity.class);
@@ -324,7 +315,7 @@ public class CurrentLocationService extends Service {
 
     }
 
-    private void putPlaceList(DataSnapshot dataSnapshot, List<DatabasePlace> dbPlaceList) {
+    private void putPlaceList(DataSnapshot dataSnapshot) {
         String key = dataSnapshot.getKey();
         Log.i("onDataChange", key);
         Object kind = dataSnapshot.child("Kind").getValue();
@@ -333,9 +324,10 @@ public class CurrentLocationService extends Service {
         Object longitude = dataSnapshot.child("Location").child("Longitude").getValue();
         Object uri = dataSnapshot.child("ImageURI").getValue();
         Object id = dataSnapshot.child("ID").getValue();
+        Object information = dataSnapshot.child("Information").getValue();
         Log.i("Value", kind + ":" + level + ":" + latitude + ":" + longitude + ":" + id);
         if (latitude != null && longitude != null) {
-            DatabasePlace dbPlace = new DatabasePlace(key, (String) kind, (long) level, (Double) latitude, (Double) longitude, (long) id, (String) uri);
+            DatabasePlace dbPlace = new DatabasePlace(key, (String) kind, (long) level, (Double) latitude, (Double) longitude, (long) id, (String) uri, (String) information);
             dbPlaceList.add(dbPlace);
             dbPlaceNotificationCheckArray.put(dbPlace.getId(), false);
         }
@@ -344,8 +336,9 @@ public class CurrentLocationService extends Service {
     public void checkPlaceAll() {
         Log.i("Check", "checkPlaceAll");
         for (DatabasePlace dbPlace : dbPlaceList) {
-            if (calcDistance(dbPlace.getLocation()) < 500) {
-                Log.i(TAG, "DANGER:" + dbPlace.getName());
+            double distance = calcDistance(dbPlace.getLocation());
+            if (distance < 500) {
+                Log.i(TAG, "DANGER:" + dbPlace.getName() + ":" + distance);
                 if (!dbPlaceNotificationCheckArray.get(dbPlace.getId())) {
                     dangerNotification(dbPlace);
                 } else {

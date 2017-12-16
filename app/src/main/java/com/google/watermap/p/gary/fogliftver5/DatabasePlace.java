@@ -17,14 +17,13 @@ public class DatabasePlace {
 
     private String uri;
     private long id;
-
+    private String information;
 
     public DatabasePlace() {
         // Default constructor required for calls to DataSnapshot.getValue(User.class)
     }
 
-    public DatabasePlace(String name, String kind, long level, double latitude, double longitude, long id, String uri) {
-
+    public DatabasePlace(String name, String kind, long level, double latitude, double longitude, long id, String uri, String information) {
         this.name = name;
         this.kind = kind;
         this.level = level;
@@ -33,6 +32,7 @@ public class DatabasePlace {
         this.location = new LatLng(latitude, longitude);
         this.uri = uri;
         this.id = id;
+        this.information = information;
     }
 
     public String getName() {
@@ -117,6 +117,10 @@ public class DatabasePlace {
 
     public String getUri() {
         return uri;
+    }
+
+    public String getInformation() {
+        return information;
     }
 
 }

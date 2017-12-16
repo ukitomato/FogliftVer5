@@ -42,7 +42,6 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.VisibleRegion;
 import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -51,7 +50,6 @@ import com.google.firebase.database.ValueEventListener;
 import com.google.maps.android.SphericalUtil;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 import static java.lang.Math.cos;
@@ -71,7 +69,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     //Current Position
     private static final int REQUEST_PERMISSIONS_REQUEST_CODE = 34;
-    private static final int REQUEST_CHECK_SETTINGS = 0x1;
 
     // UI
     private final static String KEY_CAMERA_LOCATION = "camera_location";
@@ -85,13 +82,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private final LatLng mDefaultLocation = new LatLng(35.652832, 139.839478);
     private final LatLng tsukuba = new LatLng(36.082736, 140.111592);
-    private double distance;
-    private Marker mMarker;
-    private Polyline mPolyline;
-
-    //Notification
-    private static NotificationManager mNotificationManager;
-    private final static int dnID = 8736418;
 
     //Preference
     private SharedPreferences preferences;
@@ -121,7 +111,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         setContentView(R.layout.activity_main);
         preferences = getSharedPreferences("DATA", Context.MODE_PRIVATE);
 
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
@@ -186,7 +176,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mCameraZoom = savedInstanceState.getFloat(KEY_CAMERA_ZOOM);
             }
             if (savedInstanceState.keySet().contains(KEY_CAMERA_LOCATION)) {
-                mCurrentLocation = savedInstanceState.getParcelable(KEY_CAMERA_LOCATION);
+                mCameraLocation = savedInstanceState.getParcelable(KEY_CAMERA_LOCATION);
             }
             //UIの更新
             updateUI();
@@ -224,9 +214,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Log.i("updateUI", "fromNotification");
                 if (onDataChange) {
                     Log.i("updateUI", "dangerPlaceId:" + dangerPlaceId);
-                    if (markerHashArray.get(dangerPlaceId) != null) {
-                        Log.i("updateUI", "NOT_NULL");
-                    }
                     Marker dangerMarker = markerHashArray.get(dangerPlaceId);
                     dangerMarker.showInfoWindow();
                     mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(dangerMarker.getPosition().latitude + 0.007, dangerMarker.getPosition().longitude)));
@@ -379,8 +366,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         Log.i(TAG, "onMapReady");
         mMap = googleMap;
 
-        getMaker();
-
         mMap.getUiSettings().setMyLocationButtonEnabled(true);
         mMap.getUiSettings().setZoomControlsEnabled(true);
         mMap.getUiSettings().setCompassEnabled(true);
@@ -415,11 +400,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    private void getMaker() {
-        mMap.setOnMarkerDragListener(this);
-
-        mMarker = mMap.addMarker(new MarkerOptions().position(tsukuba).draggable(true));
-    }
 
     @Override
     public void onMarkerDragStart(Marker marker) {
@@ -451,16 +431,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
 
-        //noinspection SimplifiableIfStatement
         if (id == R.id.settings) {
             startActivity(new Intent(getApplication(), SettingsActivity.class));
             return true;
         }
+
         if (id == R.id.location_switch_appbar) {
             if (item.isChecked()) {
                 item.setChecked(false);
@@ -503,21 +480,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void putPlaceList(DataSnapshot dataSnapshot, List<DatabasePlace> dbPlaceList) {
         Log.i(TAG, "putPlaceList");
         String key = dataSnapshot.getKey();
-        Log.i("putPlaceList", key);
         Object kind = dataSnapshot.child("Kind").getValue();
         Object level = dataSnapshot.child("Level").getValue();
         Object latitude = dataSnapshot.child("Location").child("Latitude").getValue();
         Object longitude = dataSnapshot.child("Location").child("Longitude").getValue();
         Object uri = dataSnapshot.child("ImageURI").getValue();
         Object id = dataSnapshot.child("ID").getValue();
-        Log.i("Value", kind + ":" + level + ":" + latitude + ":" + longitude + ":" + id);
+        Object information = dataSnapshot.child("Information").getValue();
+        Log.i("putPlaceList", key + ":[" + kind + ":" + level + ":" + latitude + ":" + longitude + ":" + id + "]");
         if (latitude != null && longitude != null) {
-            DatabasePlace dbPlace = new DatabasePlace(key, (String) kind, (long) level, (Double) latitude, (Double) longitude, (long) id, (String) uri);
+            DatabasePlace dbPlace = new DatabasePlace(key, (String) kind, (long) level, (Double) latitude, (Double) longitude, (long) id, (String) uri, (String) information);
             dbPlaceList.add(dbPlace);
         }
     }
 
-    private void putMarkerHashMap(String name, Marker marker) {
+    private void putMarker(String name, Marker marker) {
 
     }
 
