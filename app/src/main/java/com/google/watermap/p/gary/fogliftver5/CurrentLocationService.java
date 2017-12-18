@@ -311,7 +311,7 @@ public class CurrentLocationService extends Service {
         mNotificationManager.notify((int) place.getId(), mBuilder.build());
         dbPlaceNotificationCheckArray.delete(place.getId());
         dbPlaceNotificationCheckArray.put(place.getId(), true);
-        Log.i("dangerNotification", place.getName() + ":" + place.getId());
+        Log.i("dangerNotification", place.getName());
 
     }
 
@@ -337,9 +337,9 @@ public class CurrentLocationService extends Service {
         Log.i("Check", "checkPlaceAll");
         for (DatabasePlace dbPlace : dbPlaceList) {
             double distance = calcDistance(dbPlace.getLocation());
-            if (distance < 500) {
-                Log.i(TAG, "DANGER:" + dbPlace.getName() + ":" + distance);
+            if (distance < 100) {
                 if (!dbPlaceNotificationCheckArray.get(dbPlace.getId())) {
+                    Log.i(TAG, "DANGER:" + dbPlace.getName() + ":" + distance + "m");
                     dangerNotification(dbPlace);
                 } else {
                     Log.i(TAG, "Already Notification");

@@ -2,7 +2,6 @@ package com.google.watermap.p.gary.fogliftver5;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 
@@ -14,6 +13,7 @@ import android.net.Uri;
 
 import android.provider.Settings;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 
@@ -28,8 +28,11 @@ import android.view.MenuItem;
 import android.view.View;
 
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.places.Places;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -56,7 +59,8 @@ import static java.lang.Math.cos;
 import static java.lang.Math.sin;
 
 
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMarkerDragListener {
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMarkerDragListener ,GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener{
 
     private GoogleMap mMap;
 
@@ -65,6 +69,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private final static String KEY_LOCATION = "location";
     private LatLng mCurrentLocation;
     private FusedLocationProviderClient mFusedLocationClient;
+
+
     private float mCameraDefaultZoom = 15;
 
     //Current Position
@@ -90,19 +96,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     //Firebase
     private FragmentActivity fragmentActivity = this;
-
     private FirebaseDatabase mDatabase;
-
     private DatabaseReference mDatabaseReference;
     private List<DatabasePlace> dbPlaceList = new ArrayList<>();
     private boolean onDataChange = false;
-    private List<Marker> markersList = new ArrayList<>();
-    private int markersCount = 0;
     private LongSparseArray<Marker> markerHashArray = new LongSparseArray<>();
 
     private static final String KEY_MARKER_MAP = "maker_map";
     Intent intent;
     private double earth_dis = 6378137;
+    private GoogleApiClient mGoogleApiClient;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -113,6 +116,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .enableAutoManage(this /* FragmentActivity */,
+                        this /* OnConnectionFailedListener */)
+                .addConnectionCallbacks(this)
+                .addApi(LocationServices.API)
+                .addApi(Places.GEO_DATA_API)
+                .addApi(Places.PLACE_DETECTION_API)
+                .build();
+        mGoogleApiClient.connect();
 
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
@@ -499,5 +512,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
 
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+
+    }
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+
+    }
 }
 
