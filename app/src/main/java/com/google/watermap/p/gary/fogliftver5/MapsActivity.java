@@ -8,9 +8,15 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 
+import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.net.Uri;
 
+import android.preference.ListPreference;
+import android.preference.PreferenceManager;
+import android.preference.SwitchPreference;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -26,15 +32,21 @@ import android.util.LongSparseArray;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Toast;
 
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.places.Place;
 import com.google.android.gms.location.places.Places;
+import com.google.android.gms.location.places.ui.PlaceAutocompleteFragment;
+import com.google.android.gms.location.places.ui.PlaceSelectionListener;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.GoogleMap.OnPoiClickListener;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
@@ -42,7 +54,7 @@ import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PointOfInterest;
 import com.google.android.gms.maps.model.VisibleRegion;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.database.DataSnapshot;
@@ -60,7 +72,7 @@ import static java.lang.Math.sin;
 
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMarkerDragListener ,GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener{
+        GoogleApiClient.OnConnectionFailedListener,OnPoiClickListener,PlaceSelectionListener{
 
     private GoogleMap mMap;
 
@@ -91,6 +103,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     //Preference
     private SharedPreferences preferences;
+    private SharedPreferences sharedPreferences;
+    private SharedPreferences.OnSharedPreferenceChangeListener onSharedPreferenceChangeListener;
     private Boolean serviceAvailble;
     private MenuItem serviceSwitch;
 
@@ -102,7 +116,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private boolean onDataChange = false;
     private LongSparseArray<Marker> markerHashArray = new LongSparseArray<>();
 
-    private static final String KEY_MARKER_MAP = "maker_map";
     Intent intent;
     private double earth_dis = 6378137;
     private GoogleApiClient mGoogleApiClient;
@@ -113,6 +126,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         preferences = getSharedPreferences("DATA", Context.MODE_PRIVATE);
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        onSharedPreferenceChangeListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
+            @Override
+            public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+                if (key.equals("location_switch")) {
+                    serviceAvailble = sharedPreferences.getBoolean(key, false);
+                    Log.i("onSharedPreference", String.valueOf(sharedPreferences.getBoolean(key, false)));
+                    if (serviceAvailble) {
+                        startService(new Intent(getBaseContext(), CurrentLocationService.class));
+                    } else {
+                        stopService(new Intent(getBaseContext(), CurrentLocationService.class));
+                    }
+                    preferences.edit().putBoolean("SERVICE", serviceAvailble).apply();
+
+                } else {
+                    Log.i("onSharedPreference", "else");
+                }
+            }
+        };
+        sharedPreferences.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener);
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -125,9 +158,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .addApi(Places.GEO_DATA_API)
                 .addApi(Places.PLACE_DETECTION_API)
                 .build();
+
         mGoogleApiClient.connect();
 
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
+        PlaceAutocompleteFragment autocompleteFragment = (PlaceAutocompleteFragment)
+                getFragmentManager().findFragmentById(R.id.autocomplete_fragment);
+
+        autocompleteFragment.setOnPlaceSelectedListener(this);
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -138,10 +177,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         //UI指定
 
 
-        //ラベル指定
-
-
-        serviceAvailble = false;
+        serviceAvailble = sharedPreferences.getBoolean("location_switch", false);
 
         updateValuesFromSharedPreferences(preferences);
         updateValuesFromBundle(savedInstanceState);
@@ -167,7 +203,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             @Override
             public void onCancelled(DatabaseError databaseError) {
-
+                Log.i(TAG, "Database Error");
             }
         });
 
@@ -198,6 +234,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void updateValuesFromSharedPreferences(SharedPreferences data) {
         serviceAvailble = data.getBoolean("SERVICE", false);
+
     }
 
 
@@ -384,24 +421,31 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mMap.getUiSettings().setCompassEnabled(true);
         mMap.getUiSettings().setIndoorLevelPickerEnabled(true);
 
+        mMap.setOnPoiClickListener(this);
+
         mMap.setInfoWindowAdapter(new CustomWindowViewer(fragmentActivity));
         mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
             @Override
             public boolean onMarkerClick(Marker marker) {
                 Log.i(TAG, "onMarkerClick");
-                CameraPosition cameraPosition = mMap.getCameraPosition();
+                CameraPosition cameraPos = mMap.getCameraPosition();
                 VisibleRegion screenRegion = mMap.getProjection().getVisibleRegion();
                 LatLng topRight = screenRegion.latLngBounds.northeast;
                 LatLng bottomLeft = screenRegion.latLngBounds.southwest;
                 double screenDistance = SphericalUtil.computeDistanceBetween(topRight, bottomLeft) * sin(40) * 25;
-                double theta = cameraPosition.tilt;
+                double theta = cameraPos.tilt;
                 double distance = screenDistance / earth_dis;
                 double moveLat = distance * cos(theta);
                 double moveLng = distance * sin(theta);
-                Log.i(TAG, moveLat + ":"+moveLng);
-
                 marker.showInfoWindow();
-                mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(marker.getPosition().latitude + moveLat, marker.getPosition().longitude + moveLng)));
+                CameraPosition cameraPosition = new CameraPosition.Builder()
+                        .tilt(cameraPos.tilt)
+                        .zoom(cameraPos.zoom)
+                        .target(new LatLng(marker.getPosition().latitude + moveLat, marker.getPosition().longitude + moveLng))      // Sets the center of the map to Mountain View
+                        .build();                   // Creates a CameraPosition from the builder
+
+                mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
+                //mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(marker.getPosition().latitude + moveLat, marker.getPosition().longitude + moveLng)));
                 return true;
             }
         });
@@ -437,8 +481,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         super.onPrepareOptionsMenu(menu);
-        serviceSwitch = menu.findItem(R.id.location_switch_appbar);
-        serviceSwitch.setChecked(serviceAvailble);
+
         return true;
     }
 
@@ -451,19 +494,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             return true;
         }
 
-        if (id == R.id.location_switch_appbar) {
-            if (item.isChecked()) {
-                item.setChecked(false);
-                serviceAvailble = false;
-                stopService(new Intent(getBaseContext(), CurrentLocationService.class));
-            } else {
-                item.setChecked(true);
-                serviceAvailble = true;
-                startService(new Intent(getBaseContext(), CurrentLocationService.class));
-            }
-            preferences.edit().putBoolean("SERVICE", serviceAvailble).apply();
-            return true;
-        }
 
         return super.onOptionsItemSelected(item);
     }
@@ -484,9 +514,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void addMakerAll() {
         Log.i(TAG, "addMarkerAll");
         for (DatabasePlace dbPlace : dbPlaceList) {
-            markerHashArray.put(dbPlace.getId(), mMap.addMarker(new MarkerOptions().position(dbPlace.getLocation()).title(dbPlace.getName())
-                    .icon(BitmapDescriptorFactory.defaultMarker(dbPlace.getMakerColor()))));
-            markerHashArray.get(dbPlace.getId()).setTag(dbPlace);
+            if (dbPlace.getKind().equals("狂犬病")) {
+                Resources r = getResources();
+                Bitmap bmp = BitmapFactory.decodeResource(r, R.drawable.dogmarker);
+                markerHashArray.put(dbPlace.getId(), mMap.addMarker(new MarkerOptions().position(dbPlace.getLocation()).title(dbPlace.getName())
+                        .icon(BitmapDescriptorFactory.fromBitmap(bmp))));
+                markerHashArray.get(dbPlace.getId()).setTag(dbPlace);
+            } else {
+                markerHashArray.put(dbPlace.getId(), mMap.addMarker(new MarkerOptions().position(dbPlace.getLocation()).title(dbPlace.getName())
+                        .icon(BitmapDescriptorFactory.defaultMarker(dbPlace.getMakerColor()))));
+                markerHashArray.get(dbPlace.getId()).setTag(dbPlace);
+            }
         }
     }
 
@@ -514,16 +552,36 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
-
+        Log.i(TAG, "onConnected");
     }
 
     @Override
     public void onConnectionSuspended(int i) {
-
+        Log.i(TAG, "onConnectionSuspended");
     }
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+        Log.i(TAG, "onConnectionFailed");
+    }
+
+
+    @Override
+    public void onPoiClick(PointOfInterest pointOfInterest) {
+        Toast.makeText(getApplicationContext(), "Clicked: " +
+                        pointOfInterest.name + "\nPlace ID:" + pointOfInterest.placeId +
+                        "\nLatitude:" + pointOfInterest.latLng.latitude +
+                        " Longitude:" + pointOfInterest.latLng.longitude,
+                Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onPlaceSelected(Place place) {
+
+    }
+
+    @Override
+    public void onError(Status status) {
 
     }
 }

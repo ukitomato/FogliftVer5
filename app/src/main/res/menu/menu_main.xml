@@ -5,9 +5,4 @@
     <item
         android:id="@+id/settings"
         android:title="@string/action_settings" />
-    <item
-        android:id="@+id/location_switch_appbar"
-        android:checkable="true"
-        android:title="@string/location_update"
-        app:actionLayout="@layout/switch_item" />
 </menu>

@@ -9,12 +9,14 @@ import android.app.Service;
 import android.app.TaskStackBuilder;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
+import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.NotificationCompat;
@@ -50,8 +52,8 @@ public class CurrentLocationService extends Service {
     private FusedLocationProviderClient mFusedLocationClient;
 
 
-    private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 5000;
-    private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
+    private static long UPDATE_INTERVAL_IN_MILLISECONDS;
+    private static long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS;
 
     private SettingsClient mSettingsClient;
     private LocationRequest mLocationRequest;
@@ -60,15 +62,19 @@ public class CurrentLocationService extends Service {
     private Location mCurrentLocation;
 
     private Boolean mRequestingLocationUpdates;
+    private SharedPreferences.OnSharedPreferenceChangeListener onSharedPreferenceChangeListener;
 
     private final LatLng tsukuba = new LatLng(36.082736, 140.111592);
 
     private HandlerThread handlerThread;
+    private Handler handler;
     private NotificationManager mNotificationManager;
     private final int nID = 18734264;
 
     private List<DatabasePlace> dbPlaceList = new ArrayList<>();
     private LongSparseArray<Boolean> dbPlaceNotificationCheckArray = new LongSparseArray<>();
+
+    private SharedPreferences sharedPreferences;
 
     public CurrentLocationService() {
     }
@@ -85,6 +91,25 @@ public class CurrentLocationService extends Service {
         mRequestingLocationUpdates = false;
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         mSettingsClient = LocationServices.getSettingsClient(this);
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        onSharedPreferenceChangeListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
+
+            @Override
+            public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+                Log.i("onSharedPreference", sharedPreferences.getString(key, ""));
+                if (sharedPreferences.getBoolean("location_switch", false)) {
+                    if (key.equals("sync_frequency")) {
+                        modifyLocationRequest(Long.parseLong(sharedPreferences.getString("sync_frequency", "5")) * 1000);
+                    } else {
+                        Log.i("onSharedPreference", "else");
+                    }
+                }
+            }
+        };
+        sharedPreferences.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener);
+
+        UPDATE_INTERVAL_IN_MILLISECONDS = Long.parseLong(sharedPreferences.getString("sync_frequency", "5")) * 1000;
+        FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
 
         //Thread
         handlerThread = new HandlerThread("location_update_service");
@@ -133,7 +158,12 @@ public class CurrentLocationService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        stopLocationUpdates();
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                stopLocationUpdates();
+            }
+        });
         mNotificationManager.cancel(nID);
     }
 
@@ -149,6 +179,31 @@ public class CurrentLocationService extends Service {
         mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS);
         //優先度設定
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+    }
+
+    private void modifyLocationRequest(long interval) {
+
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                stopLocationUpdates();
+            }
+        });
+        UPDATE_INTERVAL_IN_MILLISECONDS = interval;
+        FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
+        //インターバル設定
+        mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
+        //ファストインターバル設定
+        mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS);
+
+        buildLocationSettingsRequest();
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                startLocationUpdates();
+            }
+        });
+
     }
 
     /**
@@ -199,6 +254,7 @@ public class CurrentLocationService extends Service {
             public void onFailure(@NonNull Exception e) {
                 Log.i("startLocationUpdates", "onFailure");
                 mRequestingLocationUpdates = false;
+                stopSelf();
 
             }
         });
@@ -243,14 +299,17 @@ public class CurrentLocationService extends Service {
      */
     private void startLocationUpdateThread() {
         handlerThread.start();
-        Handler handler = new Handler(handlerThread.getLooper());
+        handler = new Handler(handlerThread.getLooper());
         handler.post(new Runnable() {
             @Override
             public void run() {
                 startLocationUpdates();
             }
         });
+
     }
+
+
 
     private void keepNotification() {
         NotificationCompat.Builder mBuilder =

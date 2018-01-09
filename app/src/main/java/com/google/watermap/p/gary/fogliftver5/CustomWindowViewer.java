@@ -20,7 +20,7 @@ public class CustomWindowViewer implements GoogleMap.InfoWindowAdapter {
 
 
     public CustomWindowViewer(FragmentActivity fragment) {
-        infoView = fragment.getLayoutInflater().inflate(R.layout.custom_maker_window, null);
+        infoView = fragment.getLayoutInflater().inflate(R.layout.custom_marker_window_diarrhea, null);
     }
 
     @Override
@@ -29,10 +29,7 @@ public class CustomWindowViewer implements GoogleMap.InfoWindowAdapter {
         ((TextView) infoView.findViewById(R.id.place_name)).setText(dbPlace.getName());
         ((TextView) infoView.findViewById(R.id.place_kind)).setText(dbPlace.getKind());
         ((RatingBar) infoView.findViewById(R.id.place_rate)).setRating(dbPlace.getLevel());
-        ((TextView) infoView.findViewById(R.id.place_info)).setText(dbPlace.getKind());
-        TextView placeLevelTextView = infoView.findViewById(R.id.place_level);
-        placeLevelTextView.setBackgroundColor(dbPlace.getLevelColor());
-        placeLevelTextView.setText(String.valueOf(dbPlace.getLevel()));
+        ((TextView) infoView.findViewById(R.id.place_info)).setText(dbPlace.getInformation());
         ImageView infoImageView = infoView.findViewById(R.id.info_picture_image_view);
         infoImageView.setImageResource(dbPlace.getImageDrawableID());
         return infoView;

@@ -14,18 +14,16 @@
     <string name="pref_header_location">位置情報</string>
 
     <string name="location_update">位置情報更新</string>
-    <string name="pref_description_social_recommendations">位置情報更新サービスのon/off</string>
+    <string name="pref_description_social_recommendations">バックグラウンドでの位置情報更新</string>
 
     <string name="pref_title_update_frequency">更新間隔</string>
     <string-array name="pref_update_frequency_titles">
-        <item>0 senond</item>
         <item>1 senond</item>
         <item>5 senonds</item>
         <item>10 senonds</item>
         <item>30 senonds</item>
     </string-array>
     <string-array name="pref_update_frequency_values">
-        <item>0</item>
         <item>1</item>
         <item>5</item>
         <item>10</item>

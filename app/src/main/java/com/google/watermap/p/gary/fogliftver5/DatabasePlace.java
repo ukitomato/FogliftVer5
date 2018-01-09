@@ -1,5 +1,6 @@
 package com.google.watermap.p.gary.fogliftver5;
 
+import android.graphics.Bitmap;
 import android.graphics.Color;
 
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
@@ -18,6 +19,10 @@ public class DatabasePlace {
     private String uri;
     private long id;
     private String information;
+
+    private boolean drink;
+    private boolean gargle;
+    private boolean ice;
 
     public DatabasePlace() {
         // Default constructor required for calls to DataSnapshot.getValue(User.class)
@@ -60,13 +65,11 @@ public class DatabasePlace {
             case 5:
                 return BitmapDescriptorFactory.HUE_RED;
             case 4:
-                return BitmapDescriptorFactory.HUE_ORANGE;
             case 3:
-                return BitmapDescriptorFactory.HUE_YELLOW;
             case 2:
-                return BitmapDescriptorFactory.HUE_GREEN;
+                return BitmapDescriptorFactory.HUE_YELLOW;
             case 1:
-                return BitmapDescriptorFactory.HUE_BLUE;
+                return BitmapDescriptorFactory.HUE_GREEN;
         }
         return BitmapDescriptorFactory.HUE_VIOLET;
     }
@@ -76,11 +79,11 @@ public class DatabasePlace {
             case 5:
                 return Color.argb(100, 204, 0, 0);
             case 4:
-                return Color.argb(100, 255,183,76);
+                return Color.argb(100, 255, 183, 76);
             case 3:
-                return Color.argb(100, 255,255,0);
+                return Color.argb(100, 255, 255, 0);
             case 2:
-                return Color.argb(100, 103,228,126);
+                return Color.argb(100, 103, 228, 126);
             case 1:
                 return Color.argb(100, 12, 0, 204);
         }
@@ -95,7 +98,7 @@ public class DatabasePlace {
         return uri;
     }
 
-    public long getId(){
+    public long getId() {
         return id;
     }
 
@@ -123,4 +126,22 @@ public class DatabasePlace {
         return information;
     }
 
+
+    public void setDiarrheaInfo(boolean drink, boolean gargle, boolean ice) {
+        this.drink = drink;
+        this.gargle = gargle;
+        this.ice = ice;
+    }
+
+    public boolean canDrink() {
+        return drink;
+    }
+
+    public boolean canGargle() {
+        return gargle;
+    }
+
+    public boolean canIce() {
+        return ice;
+    }
 }
